@@ -1,34 +1,55 @@
-// Set up SVG dimensions and margins
 const width = 1000;
 const height = 600;
 const margin = { top: 40, right: 40, bottom: 60, left: 80 };
 const innerWidth = width - margin.left - margin.right;
 const innerHeight = height - margin.top - margin.bottom;
 
-// Replace these URLs with the raw GitHub URLs
-const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/d3_repo_2/main/top_150_matrix.csv';
-const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/d3_repo_2/main/authors.csv';
+const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/main_matrix.csv';
+const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/authorList.csv';
 
-// Load both CSV files using Promise.all
+
 Promise.all([
     d3.csv(matrixUrl),
     d3.csv(authorsUrl)
 ]).then(([matrixData, authorsData]) => {
+    
+    function normalizeName(name) {
+        return name.normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+                  .replace(/[^a-zA-Z\s,\.]/g, ''); // Keep only letters, spaces, commas, and periods
+    }
+
+    const normalizedColumns = matrixData.columns.map((col, i) => 
+        i === 0 ? col : normalizeName(col)
+    );
+    matrixData.columns = normalizedColumns;
+
+    matrixData.forEach(row => {
+        const originalName = row[''];
+        if (originalName) {
+            row[''] = normalizeName(originalName);
+        }
+    });
+
+    authorsData.forEach(author => {
+        author.Author = normalizeName(author.Author);
+    });
+
     console.log('Matrix Data:', matrixData);
     console.log('Authors Data:', authorsData);
 
-    // Get philosopher names from matrix columns
-    const philosopherNames = Object.keys(matrixData[0]).filter(key => key !== '');
-    console.log('Philosopher Names:', philosopherNames);
+    const philosopherNames = new Set([
+        ...Object.keys(matrixData[0]).filter(key => key !== ''),  // Column names
+        ...matrixData.map(row => row[''])  // Row names
+    ]);
+    console.log('All Philosopher Names:', Array.from(philosopherNames));
 
-    // Create philosophers array with birth years from authors.csv
-    const philosophers = philosopherNames.map(name => {
+    const philosophers = Array.from(philosopherNames).map(name => {
         const authorInfo = authorsData.find(author => author.Author === name);
         console.log(`Looking for ${name}:`, authorInfo);
         
         let birthYear = null;
         if (authorInfo) {
-            // If birth year exists, use it; otherwise use death year - 50
             birthYear = authorInfo['Birth Year'] ? 
                 parseFloat(authorInfo['Birth Year']) : 
                 (authorInfo['Death Year'] ? parseFloat(authorInfo['Death Year']) - 50 : null);
@@ -36,6 +57,7 @@ Promise.all([
         
         return {
             name: name,
+            displayName: authorInfo ? (authorInfo['Display Name'] || name) : name,
             birthYear: birthYear,
             outgoingRefs: 0
         };
@@ -43,7 +65,6 @@ Promise.all([
 
     console.log('Philosophers with birth years:', philosophers);
 
-    // Calculate both incoming and outgoing references for each philosopher
     philosophers.forEach((philosopher, index) => {
         // Outgoing references (for y-axis position)
         philosopher.outgoingRefs = matrixData.reduce((sum, row) => {
@@ -56,7 +77,6 @@ Promise.all([
             return sum;
         }, 0);
         
-        // Incoming references (for filtering top 30)
         philosopher.incomingRefs = matrixData.reduce((sum, row) => {
             const value = parseInt(row[philosopher.name]) || 0;
             return sum + value;
@@ -82,6 +102,7 @@ Promise.all([
         .style('right', '40px')
         .style('top', '40px')
         .style('max-height', '80vh')
+        .style('width', '400px')  // Set fixed width
         .style('overflow-y', 'auto')
         .style('background', 'white')
         .style('padding', '10px')
@@ -89,14 +110,236 @@ Promise.all([
         .style('box-shadow', '0 2px 5px rgba(0,0,0,0.1)')
         .style('z-index', '1000');
 
-    // Add reference threshold slider with default value of 20
     const sliderContainer = controls.append('div')
         .style('margin-bottom', '15px')
         .style('padding', '10px')
         .style('border-bottom', '1px solid #ccc');
 
+    const darkModeContainer = controls.append('div')
+        .style('margin-bottom', '15px')
+        .style('padding', '10px')
+        .style('border-bottom', '1px solid #ccc');
+
+    const focalPointSection = controls.append('div')
+        .style('padding', '10px')
+        .style('border-bottom', '1px solid #ccc');
+
+    focalPointSection.append('div')
+        .style('margin-bottom', '10px')
+        .text('Add Focal Point');
+
+    // Search bar
+    const searchContainer = focalPointSection.append('div')
+        .style('margin-bottom', '15px');
+
+    const searchInput = searchContainer.append('input')
+        .attr('type', 'text')
+        .attr('placeholder', 'Search philosopher...')
+        .style('width', '100%')
+        .style('padding', '5px')
+        .style('margin-bottom', '5px');
+
+    // Dropdown for search results
+    const searchResults = searchContainer.append('div')
+        .style('display', 'none')
+        .style('position', 'absolute')
+        .style('background', 'white')
+        .style('border', '1px solid #ccc')
+        .style('max-height', '150px')
+        .style('overflow-y', 'auto')
+        .style('width', '180px')
+        .style('z-index', '1000');
+
+    // Incoming references slider
+    const incomingSlider = focalPointSection.append('div')
+        .style('margin-bottom', '15px');
+
+    incomingSlider.append('label')
+        .text('Number of Incoming References: ')
+        .style('display', 'block')
+        .style('margin-bottom', '5px');
+
+    const incomingValue = incomingSlider.append('span')
+        .text('0');
+
+    incomingSlider.append('input')
+        .attr('type', 'range')
+        .attr('min', 0)
+        .attr('max', 20)
+        .attr('value', 0)
+        .style('width', '100%')
+        .on('input', function() {
+            incomingValue.text(this.value);
+            updateFocalPoint();
+        });
+
+    // Add outgoing references slider
+    const outgoingSlider = focalPointSection.append('div')
+        .style('margin-bottom', '15px');
+
+    outgoingSlider.append('label')
+        .text('Number of Outgoing References: ')
+        .style('display', 'block')
+        .style('margin-bottom', '5px');
+
+    const outgoingValue = outgoingSlider.append('span')
+        .text('0');
+
+    outgoingSlider.append('input')
+        .attr('type', 'range')
+        .attr('min', 0)
+        .attr('max', 20)
+        .attr('value', 0)
+        .style('width', '100%')
+        .on('input', function() {
+            outgoingValue.text(this.value);
+            updateFocalPoint();
+        });
+
+    let selectedPhilosopher = null;
+
+    searchInput.on('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        if (!searchTerm) {
+            searchResults.style('display', 'none');
+            return;
+        }
+
+        const matches = validPhilosophers
+            .filter(p => p.name.toLowerCase().includes(searchTerm))
+            .slice(0, 5); // Limit to 5 results
+
+        searchResults
+            .style('display', matches.length ? 'block' : 'none')
+            .selectAll('div')
+            .data(matches)
+            .join('div')
+            .style('padding', '5px')
+            .style('cursor', 'pointer')
+            .style('hover', 'background: #f0f0f0')
+            .text(d => d.displayName)
+            .on('click', function(event, d) {
+                selectedPhilosopher = d;
+                searchInput.property('value', d.displayName);
+                searchResults.style('display', 'none');
+                updateFocalPoint();
+            });
+    });
+
+    // Add function to update visualization based on focal point
+    function updateFocalPoint() {
+        if (!selectedPhilosopher) return;
+
+        const incomingCount = parseInt(d3.select(incomingSlider.node()).select('input').property('value'));
+        const outgoingCount = parseInt(d3.select(outgoingSlider.node()).select('input').property('value'));
+
+        // Get top incoming references
+        const topIncoming = matrixData
+            .map(row => ({
+                philosopher: row[''],
+                references: parseInt(row[selectedPhilosopher.name]) || 0
+            }))
+            .filter(d => d.philosopher !== selectedPhilosopher.name && d.references > 0)
+            .sort((a, b) => b.references - a.references)
+            .slice(0, incomingCount)
+            .map(d => d.philosopher);
+
+        // Get top outgoing references
+        const selectedRow = matrixData.find(row => row[''] === selectedPhilosopher.name);
+        const topOutgoing = Object.entries(selectedRow || {})
+            .filter(([key, value]) => key !== '' && key !== selectedPhilosopher.name)
+            .map(([key, value]) => ({
+                philosopher: key,
+                references: parseInt(value) || 0
+            }))
+            .filter(d => d.references > 0)
+            .sort((a, b) => b.references - a.references)
+            .slice(0, outgoingCount)
+            .map(d => d.philosopher);
+
+        // Combine all philosophers to show
+        const philosophersToShow = new Set([
+            selectedPhilosopher.name,
+            ...topIncoming,
+            ...topOutgoing
+        ]);
+
+        // Update checkboxes
+        d3.selectAll('input[type="checkbox"]')
+            .property('checked', function() {
+                return philosophersToShow.has(this.id);
+            });
+
+        // Trigger update
+        updateVisibility();
+
+        // Ensure proper opacity after visibility update
+        g.selectAll('.point-group')
+            .each(function(d) {
+                const isFocal = d.name === selectedPhilosopher.name;
+                d3.select(this).selectAll('circle')
+                    .style('fill', isFocal ? '#8A2BE2' : 'steelblue')
+                    .style('opacity', function() {
+                        const isLargeCircle = d3.select(this).attr('r') > 4;
+                        return isLargeCircle ? 0.2 : 1;
+                    });
+            });
+    }
+
+    // Move the collapsible checkboxes section AFTER focal point
+    const checkboxesHeader = controls.append('div')
+        .style('padding', '10px')
+        .style('cursor', 'pointer')
+        .style('user-select', 'none')
+        .style('border-bottom', '1px solid #ccc');
+
+    checkboxesHeader.append('span')
+        .text('Select Philosophers: ');
+
+    checkboxesHeader.append('span')
+        .text('▼')
+        .attr('class', 'collapse-arrow')
+        .style('font-size', '0.8em')
+        .style('margin-left', '5px');
+
+    const checkboxesContainer = controls.append('div')
+        .attr('class', 'checkboxes-container')
+        .style('transition', 'max-height 0.3s ease-out');
+
+    // Add click handler for collapse/expand
+    checkboxesHeader.on('click', function() {
+        const container = d3.select('.checkboxes-container');
+        const arrow = d3.select('.collapse-arrow');
+        const isCollapsed = container.style('display') === 'none';
+        
+        container.style('display', isCollapsed ? 'block' : 'none');
+        arrow.text(isCollapsed ? '▼' : '▶');
+    });
+
+    // Move the philosopher checkboxes creation into the checkboxesContainer
+    checkboxesContainer.selectAll('div.philosopher-control')
+        .data(validPhilosophers)
+        .enter()
+        .append('div')
+        .attr('class', 'philosopher-control')
+        .style('margin', '5px')
+        .each(function(d, i) {
+            console.log('Creating control for:', d.name);
+            const div = d3.select(this);
+            div.append('input')
+                .attr('type', 'checkbox')
+                .attr('id', d => d.name)
+                .attr('checked', initialPhilosophers.includes(d) ? true : null)
+                .on('change', updateVisibility);
+            div.append('label')
+                .attr('for', d => d.name)
+                .style('margin-left', '5px')
+                .text(d => d.displayName);
+        });
+
+    // Add reference threshold slider with default value of 20
     sliderContainer.append('label')
-        .text('Minimum References: ')
+        .text('Line Threshold: ')
         .style('display', 'block')
         .style('margin-bottom', '5px');
 
@@ -114,36 +357,95 @@ Promise.all([
             updateVisibility();
         });
 
-    // Add philosopher checkboxes with debug logging
+    // Add dark mode toggle button to controls
+    darkModeContainer.append('label')
+        .text('Dark Mode: ')
+        .style('display', 'block')
+        .style('margin-bottom', '5px');
+
+    darkModeContainer.append('input')
+        .attr('type', 'checkbox')
+        .attr('id', 'darkModeToggle')
+        .on('change', toggleDarkMode);
+
+    // Add the toggleDarkMode function
+    function toggleDarkMode() {
+        const isDarkMode = d3.select('#darkModeToggle').property('checked');
+        const backgroundColor = isDarkMode ? '#1a1a1a' : 'white';
+        const textColor = isDarkMode ? 'white' : 'black';
+        const gridColor = isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
+        
+        // Update body and SVG background
+        d3.select('body')
+            .style('background-color', backgroundColor)
+            .style('color', textColor);
+        
+        svg.style('background-color', backgroundColor);
+        
+        // Update controls panel
+        controls
+            .style('background', backgroundColor)
+            .style('border', `1px solid ${isDarkMode ? '#444' : '#ccc'}`)
+            .style('color', textColor);
+        
+        // Update axes and labels
+        g.selectAll('.x-axis, .y-axis')
+            .style('color', textColor)
+            .selectAll('path, line')  // Select the axis lines
+            .style('stroke', textColor);  // Update the stroke color
+        
+        // Update axis text
+        g.selectAll('.x-axis text, .y-axis text')
+            .style('fill', textColor);
+        
+        // Update grid lines
+        g.selectAll('.grid')
+            .style('color', gridColor);  // Remove separate opacity setting
+        
+        // Update points and labels
+        g.selectAll('.point-group circle:first-child')
+            .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+        
+        g.selectAll('.point-group circle:last-child')
+            .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+        
+        g.selectAll('.label')
+            .style('fill', textColor);
+        
+        linksGroup.selectAll('.link')
+            .style('stroke', isDarkMode ? '#6ca0dc' : 'steelblue');
+        
+        svg.select('#arrowhead path')
+            .attr('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+        
+        // Update axis titles
+        g.selectAll('text') 
+            .filter(function() {
+                return this.textContent === 'Birth Year' || 
+                       this.textContent === 'Total Outgoing References';
+            })
+            .style('fill', textColor);
+
+        g.selectAll('.point-group')
+            .each(function(d) {
+                const isFocal = selectedPhilosopher && d.name === selectedPhilosopher.name;
+                d3.select(this).selectAll('circle')
+                    .style('fill', isFocal ? '#8A2BE2' : (isDarkMode ? '#6ca0dc' : 'steelblue'))
+                    .style('opacity', function() {
+                        const isLargeCircle = d3.select(this).attr('r') > 4;
+                        return isLargeCircle ? 0.2 : 1;
+                    });
+            });
+    }
+
     console.log('Creating controls for philosophers:', validPhilosophers);
     
-    controls.selectAll('div.philosopher-control')
-        .data(validPhilosophers)
-        .enter()
-        .append('div')
-        .attr('class', 'philosopher-control')
-        .style('margin', '5px')
-        .each(function(d, i) {
-            console.log('Creating control for:', d.name);
-            const div = d3.select(this);
-            div.append('input')
-                .attr('type', 'checkbox')
-                .attr('id', d => d.name)
-                .attr('checked', initialPhilosophers.includes(d) ? true : null)
-                .on('change', updateVisibility);
-            div.append('label')
-                .attr('for', d => d.name)
-                .style('margin-left', '5px')
-                .text(d => d.name);
-        });
-
     // After creating controls, verify all checkboxes
     console.log('Created checkboxes:', 
         Array.from(document.querySelectorAll('input[type="checkbox"]'))
             .map(cb => cb.id)
     );
 
-    // Function to update visibility and recalculate references
     function updateVisibility() {
         const checkedPhilosophers = new Set(
             Array.from(document.querySelectorAll('input:checked'))
@@ -152,7 +454,6 @@ Promise.all([
         
         console.log('Currently checked philosophers:', Array.from(checkedPhilosophers));
 
-        // Filter to only checked philosophers
         const activePhilosophers = validPhilosophers.filter(p => 
             checkedPhilosophers.has(p.name)
         );
@@ -168,7 +469,6 @@ Promise.all([
             data: platoActive
         });
 
-        // Recalculate references considering only checked philosophers
         activePhilosophers.forEach(philosopher => {
             if (philosopher.name === 'Plato') {
                 console.log('Recalculating Plato references...');
@@ -237,6 +537,16 @@ Promise.all([
                 .tickSize(-innerWidth)
                 .tickFormat(''));
 
+        // Update bubbles size and ensure opacity is set immediately
+        g.selectAll('.point-group circle:first-child')
+            .transition()
+            .duration(500)
+            .attr('r', d => Math.pow(d.incomingRefs, 1/3) * 4)
+            .style('opacity', 0.2);  // Set opacity immediately for large circles
+
+        g.selectAll('.point-group circle:last-child')
+            .style('opacity', 1);    // Set opacity immediately for small circles
+
         // Update points with animation
         g.selectAll('.point-group')
             .style('display', d => 
@@ -246,11 +556,13 @@ Promise.all([
             .duration(500)
             .attr('transform', d => `translate(${xScale(d.birthYear)},${yScale(d.outgoingRefs)})`);
 
-        // Update bubbles size
-        g.selectAll('.point-group circle:first-child')
-            .transition()
-            .duration(500)
-            .attr('r', d => Math.pow(d.incomingRefs, 1/3) * 4);
+        // Update colors after display change
+        g.selectAll('.point-group')
+            .each(function(d) {
+                const isFocal = selectedPhilosopher && d.name === selectedPhilosopher.name;
+                d3.select(this).selectAll('circle')
+                    .style('fill', isFocal ? '#8A2BE2' : 'steelblue');
+            });
 
         // Update labels
         g.selectAll('.label')
@@ -292,7 +604,7 @@ Promise.all([
         .attr('class', 'grid x')
         .attr('transform', `translate(0, ${innerHeight})`)
         .style('stroke-dasharray', '3,3')
-        .style('opacity', 0.2)
+        .style('color', 'rgba(0,0,0,0.2)')
         .call(d3.axisBottom(xScale)
             .tickSize(-innerHeight)
             .tickFormat(''));
@@ -300,7 +612,7 @@ Promise.all([
     g.append('g')
         .attr('class', 'grid y')
         .style('stroke-dasharray', '3,3')
-        .style('opacity', 0.2)
+        .style('color', 'rgba(0,0,0,0.2)')
         .call(d3.axisLeft(yScale)
             .tickSize(-innerWidth)
             .tickFormat(''));
@@ -343,10 +655,10 @@ Promise.all([
         .attr('d', 'M0,-5L10,0L0,5')
         .attr('fill', 'steelblue');
 
-    // Create a group for the links
+    
     const linksGroup = g.append('g')
         .attr('class', 'links')
-        .attr('opacity', 0.1);  // Make lines subtle
+        .attr('opacity', 0.1); 
 
     function updateLinks() {
         const threshold = parseInt(d3.select('input[type="range"]').property('value'));
@@ -363,10 +675,10 @@ Promise.all([
             const source = row[''];
             Object.entries(row).forEach(([target, value]) => {
                 if (target !== '' && parseInt(value) >= threshold) {
-                    // Check if there's a reference in the opposite direction
+                    
                     const targetRow = matrixData.find(r => r[''] === target);
                     if (targetRow && parseInt(targetRow[source]) >= threshold) {
-                        // Store the pair in a consistent order
+                        
                         const pair = [source, target].sort().join('->');
                         bidirectionalPairs.add(pair);
                     }
@@ -385,7 +697,7 @@ Promise.all([
                         const sourcePhil = validPhilosophers.find(p => p.name === source);
                         const targetPhil = validPhilosophers.find(p => p.name === target);
                         
-                        // Check if this is part of a bidirectional pair
+                        // check if this is part of a bidirectional pair
                         const pairKey = [source, target].sort().join('->');
                         const isBidirectional = bidirectionalPairs.has(pairKey);
                         
@@ -405,14 +717,11 @@ Promise.all([
             }
         });
 
-        // Update links with hover effects and arrows
         const linkElements = linksGroup.selectAll('.link')
             .data(links, d => d.id);
 
-        // Remove old links
         linkElements.exit().remove();
 
-        // Add new links with hover tooltip
         const newLinks = linkElements.enter()
             .append('path')
             .attr('class', 'link')
@@ -422,7 +731,7 @@ Promise.all([
             .attr('marker-end', 'url(#arrowhead)')
             .style('opacity', 0.1);
 
-        // Merge new and existing links
+        // Merge new & existing links
         const allLinks = newLinks.merge(linkElements)
             .attr('d', d => {
                 const sourceX = xScale(d.source.birthYear);
@@ -430,11 +739,9 @@ Promise.all([
                 const targetX = xScale(d.target.birthYear);
                 const targetY = yScale(d.target.outgoingRefs);
                 
-                // Create a gentle curve
                 const midX = (sourceX + targetX) / 2;
                 const midY = (sourceY + targetY) / 2;
                 
-                // Use curveDirection to determine if curve goes up or down
                 const heightMultiplier = 0.2;
                 const controlY = midY - (Math.abs(targetX - sourceX) * heightMultiplier * d.curveDirection);
                 
@@ -445,7 +752,7 @@ Promise.all([
                 ]);
             });
 
-        // Add event listeners to all links
+        // Event listeners for all links
         allLinks
             .on('mouseover', function(event, d) {
                 // Remove any existing tooltips first
@@ -455,18 +762,19 @@ Promise.all([
                     .style('opacity', 1)
                     .attr('stroke-width', 2);
                 
-                // Add tooltip
+                // Add tooltip with fixed styling
                 const tooltip = d3.select('body').append('div')
                     .attr('class', 'tooltip')
                     .style('position', 'absolute')
-                    .style('background', 'white')
+                    .style('background', 'white')  // Always white background
+                    .style('color', 'black')       // Always black text
                     .style('padding', '5px')
                     .style('border', '1px solid #ccc')
                     .style('border-radius', '3px')
                     .style('pointer-events', 'none')
                     .style('opacity', 0);
 
-                tooltip.html(`${d.source.name} → ${d.target.name}<br>References: ${d.value}`)
+                tooltip.html(`${d.source.displayName} → ${d.target.displayName}<br>References: ${d.value}`)
                     .style('left', (event.pageX + 10) + 'px')
                     .style('top', (event.pageY - 10) + 'px')
                     .transition()
@@ -490,7 +798,7 @@ Promise.all([
         linksGroup.attr('opacity', null);
     }
 
-    // Modify how points are initially added
+    // points creation to include hover and double-click functionality
     const points = g.selectAll('.point-group')
         .data(validPhilosophers)
         .enter()
@@ -498,59 +806,63 @@ Promise.all([
         .attr('class', 'point-group')
         .attr('transform', d => `translate(${xScale(d.birthYear)},${yScale(d.outgoingRefs)})`)
         .on('mouseover', function(event, d) {
-            // Remove any existing tooltips
+            // Add stroke to both circles
+            d3.select(this).selectAll('circle')
+                .style('stroke', 'black')
+                .style('stroke-width', '1px')
+                .style('opacity', function() {
+                    const isLargeCircle = d3.select(this).attr('r') > 4;
+                    return isLargeCircle ? 0.2 : 1;
+                });
+
+            // Remove any existing tooltips first
             d3.selectAll('.tooltip').remove();
             
-            // Highlight the bubble
-            d3.select(this).select('circle:first-child')
-                .style('opacity', 0.4)
-                .style('fill', '#4682b4');  // Darker steelblue
-            
-            // Add tooltip
             const tooltip = d3.select('body').append('div')
                 .attr('class', 'tooltip')
                 .style('position', 'absolute')
                 .style('background', 'white')
+                .style('color', 'black')
                 .style('padding', '5px')
                 .style('border', '1px solid #ccc')
                 .style('border-radius', '3px')
                 .style('pointer-events', 'none')
                 .style('opacity', 0);
 
-            tooltip.html(`${d.name}<br>Incoming References: ${d.incomingRefs}`)
+            tooltip.html(`${d.displayName}<br>Incoming References: ${d.incomingRefs}`)
                 .style('left', (event.pageX + 10) + 'px')
                 .style('top', (event.pageY - 10) + 'px')
                 .transition()
                 .duration(200)
                 .style('opacity', 1);
         })
-        .on('mousemove', function(event) {
-            d3.select('.tooltip')
-                .style('left', (event.pageX + 10) + 'px')
-                .style('top', (event.pageY - 10) + 'px');
-        })
         .on('mouseout', function() {
-            // Reset bubble style
-            d3.select(this).select('circle:first-child')
-                .style('opacity', 0.2)
-                .style('fill', 'steelblue');
+            // Remove stroke from circles
+            d3.select(this).selectAll('circle')
+                .style('stroke', null)
+                .style('stroke-width', null);
             
-            // Remove tooltip
             d3.selectAll('.tooltip').remove();
+        })
+        .on('dblclick', function(event, d) {
+            // Find the checkbox for this philosopher and uncheck it
+            const checkbox = document.getElementById(d.name);
+            if (checkbox) {
+                checkbox.checked = false;
+                // Trigger the change event to update the visualization
+                checkbox.dispatchEvent(new Event('change'));
+            }
         });
 
-    // Add the larger translucent bubble
     points.append('circle')
         .attr('r', d => Math.pow(d.incomingRefs, 1/3) * 4)
         .attr('fill', 'steelblue')
         .attr('opacity', 0.2);
 
-    // Add the smaller solid point
     points.append('circle')
         .attr('r', 4)
         .attr('fill', 'steelblue');
 
-    // Add philosopher names as labels
     g.selectAll('text.label')
         .data(validPhilosophers)
         .enter()
@@ -560,12 +872,10 @@ Promise.all([
         .attr('y', d => yScale(d.outgoingRefs) - 8)
         .attr('text-anchor', 'middle')
         .style('font-size', '10px')
-        .text(d => d.name);
+        .text(d => d.displayName);
 
-    // Initial link creation
     updateLinks();
 
-    // Initial visibility update to show only checked philosophers
     updateVisibility();
     
 }).catch(error => {
