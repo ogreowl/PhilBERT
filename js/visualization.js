@@ -217,6 +217,7 @@ Promise.all([
             .style('padding', '5px')
             .style('cursor', 'pointer')
             .style('hover', 'background: #f0f0f0')
+            .style('color', 'black')
             .text(d => d.displayName)
             .on('click', function(event, d) {
                 selectedPhilosopher = d;
