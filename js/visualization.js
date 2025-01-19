@@ -13,7 +13,9 @@ const religionUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/relig
 const scienceUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/science_matrix.csv';
 const artUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/art_matrix.csv';
 const politicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/politics_matrix.csv';
+const expandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/expanded.csv';
 const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/authorList.csv';
+const authorsExpandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/expanded_authors.csv';
 
 let currentDataset = 'main'; 
 
@@ -221,7 +223,8 @@ function loadVisualization(matrixData, authorsData) {
         { value: 'religion', text: 'Religion' },
         { value: 'science', text: 'Science' },
         { value: 'art', text: 'Art' },
-        { value: 'politics', text: 'Politics' }
+        { value: 'politics', text: 'Politics' },
+        { value: 'expanded', text: 'Expanded' }
     ];
 
     const bubbleContainer = datasetContainer.append('div')
@@ -269,12 +272,15 @@ function loadVisualization(matrixData, authorsData) {
                     'religion': religionUrl,
                     'science': scienceUrl,
                     'art': artUrl,
-                    'politics': politicsUrl
+                    'politics': politicsUrl,
+                    'expanded': expandedUrl
                 }[d.value];
+
+                const selectedAuthorsUrl = d.value === 'expanded' ? authorsExpandedUrl : authorsUrl;
 
                 Promise.all([
                     d3.csv(selectedMatrixUrl),
-                    d3.csv(authorsUrl)
+                    d3.csv(selectedAuthorsUrl)
                 ]).then(([newMatrixData, newAuthorsData]) => {
                     loadVisualization(newMatrixData, newAuthorsData);
                     if (isDarkMode) {
