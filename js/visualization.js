@@ -355,7 +355,7 @@ function loadVisualization(matrixData, authorsData) {
 
     focalPointSection.append('div')
         .style('margin-bottom', '10px')
-        .text('Add Focal Point');
+        .text('Select Focal Point');
 
     // search bar
     const searchContainer = focalPointSection.append('div')
