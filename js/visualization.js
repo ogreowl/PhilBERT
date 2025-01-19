@@ -4,19 +4,111 @@ const margin = { top: 40, right: 40, bottom: 60, left: 80 };
 const innerWidth = width - margin.left - margin.right;
 const innerHeight = height - margin.top - margin.bottom;
 
-const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/main_matrix.csv';
+const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/matrix3.csv';
+const hardFilteredUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/hard_filtered2.csv';
+const ethicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/ethics_matrix.csv';
+const metaphysicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/metaphysics_matrix.csv';
+const epistemologyUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/epistemology_matrix.csv';
+const religionUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/religion_matrix.csv';
+const scienceUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/science_matrix.csv';
+const artUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/art_matrix.csv';
+const politicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/politics_matrix.csv';
 const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/authorList.csv';
 
+let currentDataset = 'main'; 
 
-Promise.all([
-    d3.csv(matrixUrl),
-    d3.csv(authorsUrl)
-]).then(([matrixData, authorsData]) => {
+function applyDarkMode(isDarkMode) {
+    const backgroundColor = isDarkMode ? '#1a1a1a' : 'white';
+    const textColor = isDarkMode ? 'white' : 'black';
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
+    
+    d3.select('body')
+        .style('background-color', backgroundColor)
+        .style('color', textColor);
+    
+    d3.select('svg')
+        .style('background-color', backgroundColor);
+    
+    d3.select('.controls')
+        .style('background', backgroundColor)
+        .style('border', `1px solid ${isDarkMode ? '#444' : '#ccc'}`)
+        .style('color', textColor);
+    
+    // Update axes and labels
+    d3.selectAll('.x-axis, .y-axis')
+        .style('color', textColor)
+        .selectAll('path, line')
+        .style('stroke', textColor);
+    
+    d3.selectAll('.x-axis text, .y-axis text')
+        .style('fill', textColor);
+    
+    // Update grid lines
+    d3.selectAll('.grid')
+        .style('color', gridColor);
+    
+    // Update points and labels
+    d3.selectAll('.point-group circle:first-child')
+        .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+    
+    d3.selectAll('.point-group circle:last-child')
+        .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+    
+    d3.selectAll('.label')
+        .style('fill', textColor);
+    
+    d3.selectAll('.link')
+        .style('stroke', isDarkMode ? '#6ca0dc' : 'steelblue');
+    
+    d3.select('#arrowhead path')
+        .attr('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
+    
+    // Update axis titles
+    d3.selectAll('text')
+        .filter(function() {
+            return this.textContent === 'Birth Year' || 
+                   this.textContent === 'Total Outgoing References';
+        })
+        .style('fill', textColor);
+
+    // Update dataset bubbles
+    d3.selectAll('.dataset-bubble')
+        .style('border-color', textColor)
+        .style('background-color', function(d) {
+            const isSelected = d.value === currentDataset;
+            return isSelected ? 'steelblue' : backgroundColor;
+        })
+        .style('color', function(d) {
+            const isSelected = d.value === currentDataset;
+            return isSelected ? 'white' : textColor;
+        });
+
+    // Update focal points
+    d3.selectAll('.point-group')
+        .each(function(d) {
+            const isFocal = selectedPhilosopher && d.name === selectedPhilosopher.name;
+            d3.select(this).selectAll('circle')
+                .style('fill', isFocal ? '#8A2BE2' : (isDarkMode ? '#6ca0dc' : 'steelblue'))
+                .style('opacity', function() {
+                    const isLargeCircle = d3.select(this).attr('r') > 4;
+                    return isLargeCircle ? 0.2 : 1;
+                });
+        });
+}
+
+function toggleDarkMode() {
+    const isDarkMode = d3.select('#darkModeToggle').property('checked');
+    applyDarkMode(isDarkMode);
+}
+
+function loadVisualization(matrixData, authorsData) {
+    d3.selectAll('svg').remove();
+    d3.select('.controls').remove();
     
     function normalizeName(name) {
         return name.normalize('NFD')
-                  .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-                  .replace(/[^a-zA-Z\s,\.]/g, ''); // Keep only letters, spaces, commas, and periods
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .replace(/[^a-zA-Z\s,\.]/g, '');
     }
 
     const normalizedColumns = matrixData.columns.map((col, i) => 
@@ -66,7 +158,6 @@ Promise.all([
     console.log('Philosophers with birth years:', philosophers);
 
     philosophers.forEach((philosopher, index) => {
-        // Outgoing references (for y-axis position)
         philosopher.outgoingRefs = matrixData.reduce((sum, row) => {
             if (row[''] === philosopher.name) {
                 // Sum all references this philosopher makes to others
@@ -83,10 +174,9 @@ Promise.all([
         }, 0);
     });
 
-    // Sort by incoming references
+
     philosophers.sort((a, b) => b.incomingRefs - a.incomingRefs);
 
-    // Create two arrays: one for initially visible philosophers and one for all valid philosophers
     const initialPhilosophers = philosophers.slice(0, 10);
     const validPhilosophers = philosophers.filter(p => p.birthYear !== null);
 
@@ -94,7 +184,6 @@ Promise.all([
     console.log('Top 30:', initialPhilosophers);
     console.log('Valid philosophers:', validPhilosophers);
 
-    // Create checkbox controls
     const controls = d3.select('body')
         .append('div')
         .attr('class', 'controls')
@@ -102,7 +191,7 @@ Promise.all([
         .style('right', '40px')
         .style('top', '40px')
         .style('max-height', '80vh')
-        .style('width', '400px')  // Set fixed width
+        .style('width', '400px')
         .style('overflow-y', 'auto')
         .style('background', 'white')
         .style('padding', '10px')
@@ -110,15 +199,144 @@ Promise.all([
         .style('box-shadow', '0 2px 5px rgba(0,0,0,0.1)')
         .style('z-index', '1000');
 
-    const sliderContainer = controls.append('div')
+    // add dataset selector as first control
+    const datasetContainer = controls.append('div')
         .style('margin-bottom', '15px')
         .style('padding', '10px')
-        .style('border-bottom', '1px solid #ccc');
+        .style('border-bottom', '1px solid #ccc')
+        .style('display', 'flex')
+        .style('flex-direction', 'column')
+        .style('gap', '10px');
+
+    datasetContainer.append('label')
+        .text('Dataset: ')
+        .style('margin-right', '10px');
+
+    const datasets = [
+        { value: 'main', text: 'Main' },
+        { value: 'filtered', text: 'Strong Filter' },
+        { value: 'ethics', text: 'Ethics' },
+        { value: 'metaphysics', text: 'Metaphysics' },
+        { value: 'epistemology', text: 'Epistemology' },
+        { value: 'religion', text: 'Religion' },
+        { value: 'science', text: 'Science' },
+        { value: 'art', text: 'Art' },
+        { value: 'politics', text: 'Politics' }
+    ];
+
+    const bubbleContainer = datasetContainer.append('div')
+        .style('display', 'flex')
+        .style('flex-wrap', 'wrap')              // wrapping
+        .style('gap', '8px')                     // consistent gap between rows and columns
+        .style('justify-content', 'flex-start'); // align to start instead of space-between
+
+    const bubbles = bubbleContainer.selectAll('.dataset-bubble')
+        .data(datasets)
+        .enter()
+        .append('div')
+        .attr('class', 'dataset-bubble')
+        .style('display', 'inline-block')
+        .style('margin', '0')
+        .style('padding', '5px 15px')
+        .style('border', '2px solid black')
+        .style('border-radius', '20px')
+        .style('cursor', 'pointer')
+        .style('transition', 'all 0.2s ease')
+        .style('flex', '0 1 auto')               // don't grow, but allow shrinking
+        .style('text-align', 'center')
+        .style('background-color', d => d.value === currentDataset ? 'steelblue' : 'white')
+        .style('color', d => d.value === currentDataset ? 'white' : 'black')
+        .text(d => d.text)
+        .on('click', function(event, d) {
+            if (d.value !== currentDataset) {
+                bubbles
+                    .style('background-color', data => data.value === d.value ? 'steelblue' : 'white')
+                    .style('color', data => data.value === d.value ? 'white' : 'black');
+                
+                currentDataset = d.value;
+                // URL Selection Logic
+                const selectedMatrixUrl = {
+                    'main': matrixUrl,
+                    'filtered': hardFilteredUrl,
+                    'ethics': ethicsUrl,
+                    'metaphysics': metaphysicsUrl,
+                    'epistemology': epistemologyUrl,
+                    'religion': religionUrl,
+                    'science': scienceUrl,
+                    'art': artUrl,
+                    'politics': politicsUrl
+                }[d.value];
+
+                Promise.all([
+                    d3.csv(selectedMatrixUrl),
+                    d3.csv(authorsUrl)
+                ]).then(([newMatrixData, newAuthorsData]) => {
+                    loadVisualization(newMatrixData, newAuthorsData);
+                    setTimeout(() => {
+                        const isDarkMode = d3.select('#darkModeToggle').property('checked');
+                        applyDarkMode(isDarkMode);
+                    }, 100);
+                }).catch(error => {
+                    console.error('Error loading the CSV files:', error);
+                });
+            }
+        })
+        .on('mouseover', function() {
+            const isDarkMode = d3.select('#darkModeToggle').property('checked');
+            const isSelected = d3.select(this).datum().value === currentDataset;
+            if (!isSelected) {
+                d3.select(this)
+                    .style('background-color', isDarkMode ? '#333' : '#f0f0f0');
+            }
+        })
+        .on('mouseout', function(event, d) {
+            const isDarkMode = d3.select('#darkModeToggle').property('checked');
+            const isSelected = d.value === currentDataset;
+            if (!isSelected) {
+                d3.select(this)
+                    .style('background-color', isDarkMode ? '#1a1a1a' : 'white');
+            }
+        });
 
     const darkModeContainer = controls.append('div')
         .style('margin-bottom', '15px')
         .style('padding', '10px')
         .style('border-bottom', '1px solid #ccc');
+
+    // Add dark mode toggle button to controls
+    darkModeContainer.append('label')
+        .text('Dark Mode: ')
+        .style('display', 'block')
+        .style('margin-bottom', '5px');
+
+    darkModeContainer.append('input')
+        .attr('type', 'checkbox')
+        .attr('id', 'darkModeToggle')
+        .on('change', toggleDarkMode);
+
+    
+    const thresholdContainer = controls.append('div')
+        .style('padding', '10px')
+        .style('border-bottom', '1px solid #ccc');
+
+    thresholdContainer.append('label')
+        .text('Line Threshold: ')
+        .style('display', 'block')
+        .style('margin-bottom', '5px');
+
+    const thresholdValue = thresholdContainer.append('span')
+        .text('20');  
+
+    thresholdContainer.append('input')
+        .attr('type', 'range')
+        .attr('min', 0)
+        .attr('max', 40)
+        .attr('value', 20)  // default value is 20
+        .style('width', '100%')
+        .on('input', function() {
+            thresholdValue.text(this.value);
+            updateVisibility();
+        });
 
     const focalPointSection = controls.append('div')
         .style('padding', '10px')
@@ -128,7 +346,7 @@ Promise.all([
         .style('margin-bottom', '10px')
         .text('Add Focal Point');
 
-    // Search bar
+    // search bar
     const searchContainer = focalPointSection.append('div')
         .style('margin-bottom', '15px');
 
@@ -139,7 +357,7 @@ Promise.all([
         .style('padding', '5px')
         .style('margin-bottom', '5px');
 
-    // Dropdown for search results
+    // dropdown for search results
     const searchResults = searchContainer.append('div')
         .style('display', 'none')
         .style('position', 'absolute')
@@ -173,7 +391,7 @@ Promise.all([
             updateFocalPoint();
         });
 
-    // Add outgoing references slider
+    //   add outgoing references slider
     const outgoingSlider = focalPointSection.append('div')
         .style('margin-bottom', '15px');
 
@@ -207,7 +425,7 @@ Promise.all([
 
         const matches = validPhilosophers
             .filter(p => p.name.toLowerCase().includes(searchTerm))
-            .slice(0, 5); // Limit to 5 results
+            .slice(0, 5); // Up to five
 
         searchResults
             .style('display', matches.length ? 'block' : 'none')
@@ -227,14 +445,14 @@ Promise.all([
             });
     });
 
-    // Add function to update visualization based on focal point
+    // function to update visualization based on focal point
     function updateFocalPoint() {
         if (!selectedPhilosopher) return;
 
         const incomingCount = parseInt(d3.select(incomingSlider.node()).select('input').property('value'));
         const outgoingCount = parseInt(d3.select(outgoingSlider.node()).select('input').property('value'));
 
-        // Get top incoming references
+        // top incoming references
         const topIncoming = matrixData
             .map(row => ({
                 philosopher: row[''],
@@ -245,7 +463,7 @@ Promise.all([
             .slice(0, incomingCount)
             .map(d => d.philosopher);
 
-        // Get top outgoing references
+        // top outgoing references
         const selectedRow = matrixData.find(row => row[''] === selectedPhilosopher.name);
         const topOutgoing = Object.entries(selectedRow || {})
             .filter(([key, value]) => key !== '' && key !== selectedPhilosopher.name)
@@ -265,16 +483,16 @@ Promise.all([
             ...topOutgoing
         ]);
 
-        // Update checkboxes
+        // update checkboxes
         d3.selectAll('input[type="checkbox"]')
             .property('checked', function() {
                 return philosophersToShow.has(this.id);
             });
 
-        // Trigger update
+        
         updateVisibility();
 
-        // Ensure proper opacity after visibility update
+        
         g.selectAll('.point-group')
             .each(function(d) {
                 const isFocal = d.name === selectedPhilosopher.name;
@@ -287,7 +505,7 @@ Promise.all([
             });
     }
 
-    // Move the collapsible checkboxes section AFTER focal point
+
     const checkboxesHeader = controls.append('div')
         .style('padding', '10px')
         .style('cursor', 'pointer')
@@ -307,7 +525,6 @@ Promise.all([
         .attr('class', 'checkboxes-container')
         .style('transition', 'max-height 0.3s ease-out');
 
-    // Add click handler for collapse/expand
     checkboxesHeader.on('click', function() {
         const container = d3.select('.checkboxes-container');
         const arrow = d3.select('.collapse-arrow');
@@ -317,7 +534,6 @@ Promise.all([
         arrow.text(isCollapsed ? '▼' : '▶');
     });
 
-    // Move the philosopher checkboxes creation into the checkboxesContainer
     checkboxesContainer.selectAll('div.philosopher-control')
         .data(validPhilosophers)
         .enter()
@@ -338,110 +554,8 @@ Promise.all([
                 .text(d => d.displayName);
         });
 
-    // Add reference threshold slider with default value of 20
-    sliderContainer.append('label')
-        .text('Line Threshold: ')
-        .style('display', 'block')
-        .style('margin-bottom', '5px');
-
-    const thresholdValue = sliderContainer.append('span')
-        .text('20');  // Set initial display value
-
-    sliderContainer.append('input')
-        .attr('type', 'range')
-        .attr('min', 0)
-        .attr('max', 40)
-        .attr('value', 20)  // Set default value to 20
-        .style('width', '100%')
-        .on('input', function() {
-            thresholdValue.text(this.value);
-            updateVisibility();
-        });
-
-    // Add dark mode toggle button to controls
-    darkModeContainer.append('label')
-        .text('Dark Mode: ')
-        .style('display', 'block')
-        .style('margin-bottom', '5px');
-
-    darkModeContainer.append('input')
-        .attr('type', 'checkbox')
-        .attr('id', 'darkModeToggle')
-        .on('change', toggleDarkMode);
-
-    // Add the toggleDarkMode function
-    function toggleDarkMode() {
-        const isDarkMode = d3.select('#darkModeToggle').property('checked');
-        const backgroundColor = isDarkMode ? '#1a1a1a' : 'white';
-        const textColor = isDarkMode ? 'white' : 'black';
-        const gridColor = isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
-        
-        // Update body and SVG background
-        d3.select('body')
-            .style('background-color', backgroundColor)
-            .style('color', textColor);
-        
-        svg.style('background-color', backgroundColor);
-        
-        // Update controls panel
-        controls
-            .style('background', backgroundColor)
-            .style('border', `1px solid ${isDarkMode ? '#444' : '#ccc'}`)
-            .style('color', textColor);
-        
-        // Update axes and labels
-        g.selectAll('.x-axis, .y-axis')
-            .style('color', textColor)
-            .selectAll('path, line')  // Select the axis lines
-            .style('stroke', textColor);  // Update the stroke color
-        
-        // Update axis text
-        g.selectAll('.x-axis text, .y-axis text')
-            .style('fill', textColor);
-        
-        // Update grid lines
-        g.selectAll('.grid')
-            .style('color', gridColor);  // Remove separate opacity setting
-        
-        // Update points and labels
-        g.selectAll('.point-group circle:first-child')
-            .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
-        
-        g.selectAll('.point-group circle:last-child')
-            .style('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
-        
-        g.selectAll('.label')
-            .style('fill', textColor);
-        
-        linksGroup.selectAll('.link')
-            .style('stroke', isDarkMode ? '#6ca0dc' : 'steelblue');
-        
-        svg.select('#arrowhead path')
-            .attr('fill', isDarkMode ? '#6ca0dc' : 'steelblue');
-        
-        // Update axis titles
-        g.selectAll('text') 
-            .filter(function() {
-                return this.textContent === 'Birth Year' || 
-                       this.textContent === 'Total Outgoing References';
-            })
-            .style('fill', textColor);
-
-        g.selectAll('.point-group')
-            .each(function(d) {
-                const isFocal = selectedPhilosopher && d.name === selectedPhilosopher.name;
-                d3.select(this).selectAll('circle')
-                    .style('fill', isFocal ? '#8A2BE2' : (isDarkMode ? '#6ca0dc' : 'steelblue'))
-                    .style('opacity', function() {
-                        const isLargeCircle = d3.select(this).attr('r') > 4;
-                        return isLargeCircle ? 0.2 : 1;
-                    });
-            });
-    }
-
     console.log('Creating controls for philosophers:', validPhilosophers);
     
-    // After creating controls, verify all checkboxes
     console.log('Created checkboxes:', 
         Array.from(document.querySelectorAll('input[type="checkbox"]'))
             .map(cb => cb.id)
@@ -506,24 +620,24 @@ Promise.all([
             }
         });
 
-        // Update both x and y scales with new domains
+        // update both x and y scales w/ new domains
         xScale.domain(d3.extent(activePhilosophers, d => d.birthYear)).nice();
         yScale.domain([0, d3.max(activePhilosophers, d => d.outgoingRefs)]).nice();
 
-        // Update x-axis with animation
+        // update x-axis w/ animation
         g.select('.x-axis')
             .transition()
             .duration(500)
             .call(d3.axisBottom(xScale)
                 .tickFormat(d => Math.abs(d) + (d < 0 ? ' BCE' : ' CE')));
 
-        // Update y-axis with animation
+        // update y-axis
         g.select('.y-axis')
             .transition()
             .duration(500)
             .call(d3.axisLeft(yScale));
 
-        // Update both x and y grid lines
+        // Update grid lines
         g.select('.grid.x')
             .transition()
             .duration(500)
@@ -538,17 +652,16 @@ Promise.all([
                 .tickSize(-innerWidth)
                 .tickFormat(''));
 
-        // Update bubbles size and ensure opacity is set immediately
         g.selectAll('.point-group circle:first-child')
             .transition()
             .duration(500)
             .attr('r', d => Math.pow(d.incomingRefs, 1/3) * 4)
-            .style('opacity', 0.2);  // Set opacity immediately for large circles
+            .style('opacity', 0.2);  // for large circles
 
         g.selectAll('.point-group circle:last-child')
-            .style('opacity', 1);    // Set opacity immediately for small circles
+            .style('opacity', 1);    // for small circles
 
-        // Update points with animation
+        // animation for updating points
         g.selectAll('.point-group')
             .style('display', d => 
                 checkedPhilosophers.has(d.name) ? null : 'none'
@@ -557,7 +670,7 @@ Promise.all([
             .duration(500)
             .attr('transform', d => `translate(${xScale(d.birthYear)},${yScale(d.outgoingRefs)})`);
 
-        // Update colors after display change
+        
         g.selectAll('.point-group')
             .each(function(d) {
                 const isFocal = selectedPhilosopher && d.name === selectedPhilosopher.name;
@@ -565,7 +678,7 @@ Promise.all([
                     .style('fill', isFocal ? '#8A2BE2' : 'steelblue');
             });
 
-        // Update labels
+
         g.selectAll('.label')
             .style('display', d => 
                 checkedPhilosophers.has(d.name) ? null : 'none'
@@ -575,21 +688,21 @@ Promise.all([
             .attr('x', d => xScale(d.birthYear))
             .attr('y', d => yScale(d.outgoingRefs) - 8);
 
-        // Update links
+
         updateLinks();
     }
 
-    // Create SVG container
+    // SVG container
     const svg = d3.select('body')
         .append('svg')
         .attr('width', width)
         .attr('height', height);
 
-    // Create chart group
+    //  chart group
     const g = svg.append('g')
         .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-    // Create scales
+    //  scales
     const xScale = d3.scaleLinear()
         .domain(d3.extent(validPhilosophers, d => d.birthYear))
         .range([0, innerWidth])
@@ -618,7 +731,7 @@ Promise.all([
             .tickSize(-innerWidth)
             .tickFormat(''));
 
-    // Add axes (only once)
+    // add axes (only once)
     g.append('g')
         .attr('class', 'x-axis')
         .attr('transform', `translate(0, ${innerHeight})`)
@@ -643,7 +756,7 @@ Promise.all([
         .attr('text-anchor', 'middle')
         .text('Total Outgoing References');
 
-    // Add arrow marker definition to SVG
+    // add arrow marker definition to SVG
     svg.append('defs').append('marker')
         .attr('id', 'arrowhead')
         .attr('viewBox', '0 -5 10 10')
@@ -698,11 +811,11 @@ Promise.all([
                         const sourcePhil = validPhilosophers.find(p => p.name === source);
                         const targetPhil = validPhilosophers.find(p => p.name === target);
                         
-                        // check if this is part of a bidirectional pair
+                        //  if this is part of a bidirectional pair:
                         const pairKey = [source, target].sort().join('->');
                         const isBidirectional = bidirectionalPairs.has(pairKey);
                         
-                        // For bidirectional pairs, curve one up and one down
+                        // for bidirectional pairs, curve one up and one down
                         const curveDirection = isBidirectional ? 
                             (source < target ? 1 : -1) : 1;
                         
@@ -753,22 +866,22 @@ Promise.all([
                 ]);
             });
 
-        // Event listeners for all links
+        // event listeners for all links
         allLinks
             .on('mouseover', function(event, d) {
-                // Remove any existing tooltips first
+                // remove any existing tooltips
                 d3.selectAll('.tooltip').remove();
                 
                 d3.select(this)
                     .style('opacity', 1)
                     .attr('stroke-width', 2);
                 
-                // Add tooltip with fixed styling
+                // add tooltip
                 const tooltip = d3.select('body').append('div')
                     .attr('class', 'tooltip')
                     .style('position', 'absolute')
-                    .style('background', 'white')  // Always white background
-                    .style('color', 'black')       // Always black text
+                    .style('background', 'white')  // always white background
+                    .style('color', 'black')       // always black text
                     .style('padding', '5px')
                     .style('border', '1px solid #ccc')
                     .style('border-radius', '3px')
@@ -795,7 +908,6 @@ Promise.all([
                 d3.selectAll('.tooltip').remove();
             });
 
-        // Remove the linksGroup opacity setting since we're handling opacity per link
         linksGroup.attr('opacity', null);
     }
 
@@ -807,7 +919,7 @@ Promise.all([
         .attr('class', 'point-group')
         .attr('transform', d => `translate(${xScale(d.birthYear)},${yScale(d.outgoingRefs)})`)
         .on('mouseover', function(event, d) {
-            // Add stroke to both circles
+            // add stroke to both circles
             d3.select(this).selectAll('circle')
                 .style('stroke', 'black')
                 .style('stroke-width', '1px')
@@ -816,7 +928,7 @@ Promise.all([
                     return isLargeCircle ? 0.2 : 1;
                 });
 
-            // Remove any existing tooltips first
+            // remove any existing tooltips
             d3.selectAll('.tooltip').remove();
             
             const tooltip = d3.select('body').append('div')
@@ -838,7 +950,6 @@ Promise.all([
                 .style('opacity', 1);
         })
         .on('mouseout', function() {
-            // Remove stroke from circles
             d3.select(this).selectAll('circle')
                 .style('stroke', null)
                 .style('stroke-width', null);
@@ -846,11 +957,9 @@ Promise.all([
             d3.selectAll('.tooltip').remove();
         })
         .on('dblclick', function(event, d) {
-            // Find the checkbox for this philosopher and uncheck it
             const checkbox = document.getElementById(d.name);
             if (checkbox) {
                 checkbox.checked = false;
-                // Trigger the change event to update the visualization
                 checkbox.dispatchEvent(new Event('change'));
             }
         });
@@ -878,7 +987,14 @@ Promise.all([
     updateLinks();
 
     updateVisibility();
-    
+}
+
+// inital load
+Promise.all([
+    d3.csv(matrixUrl),
+    d3.csv(authorsUrl)
+]).then(([matrixData, authorsData]) => {
+    loadVisualization(matrixData, authorsData);
 }).catch(error => {
     console.error('Error loading the CSV files:', error);
 });
