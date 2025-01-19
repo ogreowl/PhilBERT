@@ -701,7 +701,8 @@ function loadVisualization(matrixData, authorsData) {
     const svg = d3.select('body')
         .append('svg')
         .attr('width', width)
-        .attr('height', height);
+        .attr('height', height)
+        .style('overflow', 'visible');
 
     //  chart group
     const g = svg.append('g')
@@ -777,7 +778,7 @@ function loadVisualization(matrixData, authorsData) {
     
     const linksGroup = g.append('g')
         .attr('class', 'links')
-        .attr('opacity', 0.1); 
+        .attr('opacity', 0.3); 
 
     function updateLinks() {
         const threshold = parseInt(d3.select('input[type="range"]').property('value'));
@@ -848,7 +849,7 @@ function loadVisualization(matrixData, authorsData) {
             .attr('stroke', 'steelblue')
             .attr('stroke-width', 1)
             .attr('marker-end', 'url(#arrowhead)')
-            .style('opacity', 0.1);
+            .style('opacity', 0.3);
 
         // Merge new & existing links
         const allLinks = newLinks.merge(linkElements)
@@ -907,7 +908,7 @@ function loadVisualization(matrixData, authorsData) {
             })
             .on('mouseout', function() {
                 d3.select(this)
-                    .style('opacity', 0.1)
+                    .style('opacity', 0.3)
                     .attr('stroke-width', 1);
                 
                 d3.selectAll('.tooltip').remove();
