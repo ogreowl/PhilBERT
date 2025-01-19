@@ -249,9 +249,14 @@ function loadVisualization(matrixData, authorsData) {
         .text(d => d.text)
         .on('click', function(event, d) {
             if (d.value !== currentDataset) {
+                const isDarkMode = d3.select('#darkModeToggle').property('checked');
+                
                 bubbles
-                    .style('background-color', data => data.value === d.value ? 'steelblue' : 'white')
-                    .style('color', data => data.value === d.value ? 'white' : 'black');
+                    .style('background-color', data => {
+                        if (data.value === d.value) return 'steelblue';
+                        return isDarkMode ? '#1a1a1a' : 'white';
+                    })
+                    .style('color', data => data.value === d.value ? 'white' : (isDarkMode ? 'white' : 'black'));
                 
                 currentDataset = d.value;
                 // URL Selection Logic
@@ -272,10 +277,10 @@ function loadVisualization(matrixData, authorsData) {
                     d3.csv(authorsUrl)
                 ]).then(([newMatrixData, newAuthorsData]) => {
                     loadVisualization(newMatrixData, newAuthorsData);
-                    setTimeout(() => {
-                        const isDarkMode = d3.select('#darkModeToggle').property('checked');
-                        applyDarkMode(isDarkMode);
-                    }, 100);
+                    if (isDarkMode) {
+                        d3.select('#darkModeToggle').property('checked', true);
+                        applyDarkMode(true);
+                    }
                 }).catch(error => {
                     console.error('Error loading the CSV files:', error);
                 });
