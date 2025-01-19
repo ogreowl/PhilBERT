@@ -4,18 +4,18 @@ const margin = { top: 40, right: 40, bottom: 60, left: 80 };
 const innerWidth = width - margin.left - margin.right;
 const innerHeight = height - margin.top - margin.bottom;
 
-const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/matrix3.csv';
-const hardFilteredUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/hard_filtered2.csv';
-const ethicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/ethics_matrix.csv';
-const metaphysicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/metaphysics_matrix.csv';
-const epistemologyUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/epistemology_matrix.csv';
-const religionUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/religion_matrix.csv';
-const scienceUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/science_matrix.csv';
-const artUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/art_matrix.csv';
-const politicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/politics_matrix.csv';
-const expandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/expanded.csv';
-const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/authorList.csv';
-const authorsExpandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilVT/main/expanded_authors.csv';
+const matrixUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/matrix3.csv';
+const hardFilteredUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/hard_filtered2.csv';
+const ethicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/ethics_matrix.csv';
+const metaphysicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/metaphysics_matrix.csv';
+const epistemologyUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/epistemology_matrix.csv';
+const religionUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/religion_matrix.csv';
+const scienceUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/science_matrix.csv';
+const artUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/art_matrix.csv';
+const politicsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/politics_matrix.csv';
+const expandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/expanded.csv';
+const authorsUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/authorList.csv';
+const authorsExpandedUrl = 'https://raw.githubusercontent.com/ogreowl/PhilBERT/main/expanded_authors.csv';
 
 let currentDataset = 'main'; 
 
